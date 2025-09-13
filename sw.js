@@ -1,4 +1,4 @@
-const CACHE = 'roulette-v2';
+const CACHE = 'roulette-v3';
 const ASSETS = [
   './',
   './index.html',
