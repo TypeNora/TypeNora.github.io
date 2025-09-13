@@ -38,6 +38,21 @@
   .remove{ padding:8px 10px; }
   .small{ font-size:12px; color:#555 }
 
+  @media (max-width:480px){
+    .row{
+      grid-template-columns:auto 1fr;
+      grid-template-areas:
+        "check name"
+        "label weight"
+        ". remove";
+    }
+    .row input[type="checkbox"]{ grid-area:check; }
+    .row .small{ grid-area:label; }
+    .row .name{ grid-area:name; grid-column:span 2; min-width:0; }
+    .row .weight{ grid-area:weight; }
+    .row .remove{ grid-area:remove; }
+  }
+
   .wheel-wrap{ display:flex; flex-direction:column; align-items:center; gap:10px; }
   .spacer{ height:8px; }
   .announce{
