@@ -1,5 +1,14 @@
-const CACHE = 'roulette-v3';
-const ASSETS = [
+/**
+ * Service Worker for the character roulette application.
+ *
+ * - Pre-caches core assets so the app works offline.
+ * - Cleans up old caches on activation.
+ * - Serves responses from cache first and updates the cache from the network.
+ */
+const CACHE_NAME = 'roulette-v4'; // Update this to refresh old caches
+
+// Assets to cache during the installation phase
+const PRECACHE_ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
@@ -7,31 +16,56 @@ const ASSETS = [
   './icon-512.png'
 ];
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
+// Install event: cache application shell
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_ASSETS))
+  );
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
+// Activate event: remove old caches
+self.addEventListener('activate', event => {
+  event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+      Promise.all(
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+      )
     )
   );
 });
 
-self.addEventListener('fetch', (e) => {
-  e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request).then(resp => {
-      const url = new URL(e.request.url);
-      if (
-        e.request.method === 'GET' &&
-        resp.ok &&
-        url.origin === location.origin
-      ) {
-        const respClone = resp.clone();
-        caches.open(CACHE).then(c => c.put(e.request, respClone));
-      }
-      return resp;
-    }).catch(() => caches.match('./index.html')))
-  );
+// Fetch event: cache-first strategy with network fallback
+self.addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request));
 });
+
+/**
+ * Responds with a cached response if available; otherwise, fetches from the
+ * network and caches the result when appropriate.
+ * @param {Request} request
+ * @returns {Promise<Response>}
+ */
+async function handleRequest(request) {
+  // Attempt to serve from cache first
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(request);
+
+    // Cache successful GET requests from our own origin
+    if (
+      request.method === 'GET' &&
+      response.ok &&
+      new URL(request.url).origin === location.origin
+    ) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, response.clone());
+    }
+
+    return response;
+  } catch {
+    // Offline fallback: return cached index page
+    return caches.match('./index.html');
+  }
+}
