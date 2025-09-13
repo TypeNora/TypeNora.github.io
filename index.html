@@ -32,7 +32,8 @@
   button[disabled]{ opacity:.5; cursor:not-allowed; }
 
   .checkwrap{ display:grid; grid-template-columns:1fr; gap:8px; border:1px solid #ccc; border-radius:10px; padding:10px; max-height:480px; overflow:auto; }
-  .row{ display:grid; grid-template-columns: auto 1fr 90px 70px auto; align-items:center; gap:8px; }
+  .row{ display:grid; grid-template-columns: auto 1fr auto auto; align-items:center; gap:8px; }
+  .weight-wrap{ display:flex; align-items:center; gap:4px; }
   .name{ width:100%; padding:8px 10px; border:1px solid #bbb; border-radius:8px; }
   .weight{ width:70px; padding:8px 10px; border:1px solid #bbb; border-radius:8px; text-align:right; }
   .remove{ padding:8px 10px; }
@@ -247,7 +248,8 @@
       const del = document.createElement('button'); del.className='remove'; del.textContent='削除';
       del.addEventListener('click',()=>removeCharacter(name));
       const weightLabel = document.createElement('span'); weightLabel.className='small'; weightLabel.textContent='重み';
-      row.append(cb, nameInput, weightLabel, w, del);
+      const weightWrap = document.createElement('div'); weightWrap.className='weight-wrap'; weightWrap.append(weightLabel, w);
+      row.append(cb, nameInput, weightWrap, del);
       refs.checks.appendChild(row);
     }
     ui.toggleStart();
