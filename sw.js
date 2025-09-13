@@ -23,7 +23,11 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request).then(r => r || fetch(e.request).then(resp => {
       const url = new URL(e.request.url);
-      if (url.origin === location.origin) {
+      if (
+        e.request.method === 'GET' &&
+        resp.ok &&
+        url.origin === location.origin
+      ) {
         const respClone = resp.clone();
         caches.open(CACHE).then(c => c.put(e.request, respClone));
       }
