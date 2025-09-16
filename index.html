@@ -76,8 +76,8 @@
         <strong>キャラクター編集</strong>
         <div id="presets" class="small" style="display:grid; gap:6px; margin:8px 0 10px 0;">
           <div><strong>プリセット：</strong></div>
-          <label><input type="radio" name="preset" value="OMG" checked> OMG</label>
-          <label><input type="radio" name="preset" value="オラタン"> オラタン</label>
+          <label><input type="radio" name="preset" value="OMG"> OMG</label>
+          <label><input type="radio" name="preset" value="オラタン" checked> オラタン</label>
           <label><input type="radio" name="preset" value="フォース"> フォース</label>
           <label><input type="radio" name="preset" value="禁書VO"> 禁書VO</label>
         </div>
@@ -375,9 +375,9 @@
   });
 
   function init(){
-    const omgRadio = document.querySelector('#presets input[value="OMG"]');
-    if (omgRadio){ omgRadio.checked = true; }
-    applyPreset('OMG');
+    const oratanRadio = document.querySelector('#presets input[value="オラタン"]');
+    if (oratanRadio){ oratanRadio.checked = true; }
+    applyPreset('オラタン');
     requestAnimationFrame(()=>{ resizeCanvas(); });
   }
   document.addEventListener('DOMContentLoaded', init, {once:true});
