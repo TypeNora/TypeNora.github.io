@@ -311,24 +311,24 @@
   window.addEventListener('orientationchange', ()=>resizeCanvas(), {passive:true});
 
   // 名簿編集UI
-  function renderChecks(){
-    refs.checks.innerHTML = '';
-    for(const name of state.names){
-      const row = document.createElement('div'); row.className='row';
-      const cb = document.createElement('input'); cb.type='checkbox'; cb.checked=!!state.on[name];
-      cb.addEventListener('change',()=>{ state.on[name]=cb.checked; ui.toggleStart(); wheel.rebuild(); queueSaveStateToCookie(); });
-      const nameInput = document.createElement('input'); nameInput.className='name'; nameInput.value=name;
-      nameInput.addEventListener('change',()=>{ if(renameCharacter(name, nameInput.value)){ queueSaveStateToCookie(); } });
-      const w = document.createElement('input'); w.className='weight'; w.type='number'; w.min=0.1; w.max=10; w.step='any'; w.value=state.weight[name]; w.inputMode='decimal'; w.setAttribute('aria-label','重み'); w.title='重み';
-      w.addEventListener('input',()=>{ let v=parseFloat(w.value); if(isNaN(v)) v=1; if(v<0.1) v=0.1; if(v>10) v=10; state.weight[name]=v; w.value=v; wheel.rebuild(); });
-      w.addEventListener('change',()=>{ queueSaveStateToCookie(); });
-      const del = document.createElement('button'); del.className='remove'; del.textContent='削除';
-      del.addEventListener('click',()=>{ if(removeCharacter(name)){ queueSaveStateToCookie(); } });
-      row.append(cb, nameInput, w, del);
-      refs.checks.appendChild(row);
+    function renderChecks(){
+      refs.checks.innerHTML = '';
+      for(const name of state.names){
+        const row = document.createElement('div'); row.className='row';
+        const cb = document.createElement('input'); cb.type='checkbox'; cb.checked=!!state.on[name]; cb.dataset.name = name;
+        cb.addEventListener('change',()=>{ state.on[name]=cb.checked; ui.toggleStart(); wheel.rebuild(); queueSaveStateToCookie(); });
+        const nameInput = document.createElement('input'); nameInput.className='name'; nameInput.value=name;
+        nameInput.addEventListener('change',()=>{ if(renameCharacter(name, nameInput.value)){ queueSaveStateToCookie(); } });
+        const w = document.createElement('input'); w.className='weight'; w.type='number'; w.min=0.1; w.max=10; w.step='any'; w.value=state.weight[name]; w.inputMode='decimal'; w.setAttribute('aria-label','重み'); w.title='重み';
+        w.addEventListener('input',()=>{ let v=parseFloat(w.value); if(isNaN(v)) v=1; if(v<0.1) v=0.1; if(v>10) v=10; state.weight[name]=v; w.value=v; wheel.rebuild(); });
+        w.addEventListener('change',()=>{ queueSaveStateToCookie(); });
+        const del = document.createElement('button'); del.className='remove'; del.textContent='削除';
+        del.addEventListener('click',()=>{ if(removeCharacter(name)){ queueSaveStateToCookie(); } });
+        row.append(cb, nameInput, w, del);
+        refs.checks.appendChild(row);
+      }
+      ui.toggleStart();
     }
-    ui.toggleStart();
-  }
   function renameCharacter(oldName, newName){
     newName = (newName||'').trim(); if(!newName || newName===oldName) { renderChecks(); return false; }
     const on = !!state.on[oldName]; const w = state.weight[oldName] ?? 1;
@@ -358,23 +358,25 @@
     queueSaveStateToCookie();
   });
 
-  function updateSelections(mapper){
-    let changed = false;
-    for(const name of state.names){
-      const hasOwn = Object.prototype.hasOwnProperty.call(state.on, name);
-      const prev = !!state.on[name];
-      const next = !!mapper(prev, name);
-      if(!hasOwn || prev !== next){
-        state.on[name] = next;
-        changed = true;
+    function updateSelections(mapper){
+      const cbs = refs.checks.querySelectorAll('input[type="checkbox"]');
+      let changed = false;
+      cbs.forEach(cb => {
+        const name = cb.dataset.name;
+        const prev = cb.checked;
+        const next = !!mapper(prev, name);
+        if(prev !== next){
+          cb.checked = next;
+          state.on[name] = next;
+          changed = true;
+        }
+      });
+      if(changed){
+        wheel.rebuild();
+        queueSaveStateToCookie();
+        ui.toggleStart();
       }
     }
-    if(changed){
-      wheel.rebuild();
-      renderChecks();
-      queueSaveStateToCookie();
-    }
-  }
 
   refs.allOn.addEventListener('click',()=>{ updateSelections(()=>true); });
   refs.allOff.addEventListener('click',()=>{ updateSelections(()=>false); });
