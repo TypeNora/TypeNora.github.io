@@ -526,7 +526,18 @@
   // --- PWA: Service Worker 登録 ---
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js');
+      navigator.serviceWorker.register('./sw.js')
+        .then(registration => {
+          console.info('Service Worker registration succeeded', registration);
+        })
+        .catch(err => {
+          console.error('SW registration failed', err);
+          const reasonParts = [];
+          if (err && err.name) reasonParts.push(err.name);
+          if (err && err.message) reasonParts.push(err.message);
+          const reason = reasonParts.length ? reasonParts.join(': ') : String(err);
+          alert(`Service Worker の登録に失敗しました。\n理由: ${reason}`);
+        });
     });
   }
 })();
