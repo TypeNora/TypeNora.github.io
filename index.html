@@ -350,7 +350,7 @@
         const nameInput = document.createElement('input'); nameInput.className='name'; nameInput.value=name;
         nameInput.addEventListener('change',()=>{ if(renameCharacter(name, nameInput.value)){ queueSaveStateToCookie(); } });
         const w = document.createElement('input'); w.className='weight'; w.type='number'; w.min=0.1; w.max=10; w.step='any'; w.value=state.weight[name]; w.inputMode='decimal'; w.setAttribute('aria-label','重み'); w.title='重み';
-        w.addEventListener('input',()=>{ let v=parseFloat(w.value); if(isNaN(v)) v=1; if(v<0.1) v=0.1; if(v>10) v=10; state.weight[name]=v; w.value=v; wheel.rebuild(); });
+        w.addEventListener('input',()=>{ const v = normalizeWeightValue(w.value); state.weight[name]=v; w.value=v; wheel.rebuild(); });
         w.addEventListener('change',()=>{ queueSaveStateToCookie(); });
         const del = document.createElement('button'); del.className='remove'; del.textContent='削除';
         del.addEventListener('click',()=>{ if(removeCharacter(name)){ queueSaveStateToCookie(); } });
@@ -381,7 +381,7 @@
   }
   refs.add.addEventListener('click',()=>{
     const name = (refs.newName.value||'').trim(); if(!name) return;
-    let v = parseFloat(refs.newWeight.value); if(isNaN(v)) v=1; if(v<0.1) v=0.1; if(v>10) v=10;
+    const v = normalizeWeightValue(refs.newWeight.value);
     state.names.push(name); state.on[name]=true; state.weight[name]=v;
     refs.newName.value=''; refs.newWeight.value='1';
     wheel.rebuild(); renderChecks();
