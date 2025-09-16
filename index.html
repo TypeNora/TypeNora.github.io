@@ -415,9 +415,9 @@
   // ===== UI制御 =====
   const ui = { toggleStart(){ refs.start.disabled = (wheel.segs.length<1) || anim.running; } };
 
-  // ===== アニメーション（setIntervalで駆動） =====
+  // ===== アニメーション（requestAnimationFrameで駆動） =====
   const anim = {
-    running:false, timer:null, last:0, autoDecelId:0, autoStopId:0,
+    running:false, frameId:0, last:0, autoDecelId:0, autoStopId:0, loopCb:null,
     start(){
       if(this.running || !wheel.segs.length) return;
       let total = clamp(parseFloat(refs.maxTime.value), 1, 20);
@@ -431,15 +431,15 @@
       ui.toggleStart(); refs.stop.disabled=false;
 
       wheel.decelEndAt = 0; this.last = performance.now();
-      // ★ 16ms 間隔でループ
-      this.timer = setInterval(()=>this.loop(performance.now()), 16);
+      if(!this.loopCb){ this.loopCb = (now) => this.loop(now); }
+      this.frameId = requestAnimationFrame(this.loopCb);
 
       clearTimeout(this.autoDecelId); clearTimeout(this.autoStopId);
       this.autoDecelId = setTimeout(()=>control.requestDecel(decel), Math.max(0, (total - decel))*1000);
       this.autoStopId  = setTimeout(()=>control.stop(),                total*1000);
     },
     loop(now){
-      if(!this.running) return;
+      if(!this.running){ this.frameId = 0; return; }
       const dt = Math.max(0, Math.min(0.05, (now - this.last)/1000)); this.last = now;
 
       if(wheel.decelEndAt){
@@ -449,12 +449,17 @@
       }
       wheel.rotation = (wheel.rotation + wheel.omega * dt) % (Math.PI*2);
       wheel.draw();
+      if(this.running){
+        this.frameId = requestAnimationFrame(this.loopCb || (this.loopCb = (time)=>this.loop(time)));
+      } else {
+        this.frameId = 0;
+      }
     },
     stop(){
-      if(!this.running) return;
+      if(this.frameId){ cancelAnimationFrame(this.frameId); this.frameId = 0; }
       this.running=false;
-      if(this.timer){ clearInterval(this.timer); this.timer=null; }
-      clearTimeout(this.autoDecelId); clearTimeout(this.autoStopId);
+      clearTimeout(this.autoDecelId); this.autoDecelId = 0;
+      clearTimeout(this.autoStopId);  this.autoStopId = 0;
     }
   };
 
