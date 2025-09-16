@@ -7,10 +7,11 @@
  */
 const CACHE_NAME = 'roulette-v4'; // Update this to refresh old caches
 
+const OFFLINE_URL = './index.html';
+
 // Assets to cache during the installation phase
 const PRECACHE_ASSETS = [
-  './',
-  './index.html',
+  OFFLINE_URL,
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png'
@@ -66,6 +67,6 @@ async function handleRequest(request) {
     return response;
   } catch {
     // Offline fallback: return cached index page
-    return caches.match('./index.html');
+    return caches.match(OFFLINE_URL);
   }
 }
