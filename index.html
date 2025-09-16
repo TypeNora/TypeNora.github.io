@@ -358,6 +358,28 @@
     queueSaveStateToCookie();
   });
 
+  function updateSelections(mapper){
+    let changed = false;
+    for(const name of state.names){
+      const hasOwn = Object.prototype.hasOwnProperty.call(state.on, name);
+      const prev = !!state.on[name];
+      const next = !!mapper(prev, name);
+      if(!hasOwn || prev !== next){
+        state.on[name] = next;
+        changed = true;
+      }
+    }
+    if(changed){
+      wheel.rebuild();
+      renderChecks();
+      queueSaveStateToCookie();
+    }
+  }
+
+  refs.allOn.addEventListener('click',()=>{ updateSelections(()=>true); });
+  refs.allOff.addEventListener('click',()=>{ updateSelections(()=>false); });
+  refs.invert.addEventListener('click',()=>{ updateSelections(prev=>!prev); });
+
   // ===== UI制御 =====
   const ui = { toggleStart(){ refs.start.disabled = (wheel.segs.length<1) || anim.running; } };
 
