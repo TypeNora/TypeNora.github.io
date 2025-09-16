@@ -148,6 +148,76 @@
   // 状態
   const state = { names: [], on:{}, weight:{} };
 
+  const COOKIE_KEY = 'vrState';
+  const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1年
+
+  function normalizeWeightValue(v){
+    let num = parseFloat(v);
+    if (isNaN(num)) num = 1;
+    if (num < 0.1) num = 0.1;
+    if (num > 10) num = 10;
+    return num;
+  }
+
+  function saveStateToCookie(){
+    try {
+      const data = {
+        names: state.names.slice(),
+        on: Object.fromEntries(state.names.map(n => [n, !!state.on[n]])),
+        weight: Object.fromEntries(state.names.map(n => [n, normalizeWeightValue(state.weight[n])]))
+      };
+      const json = JSON.stringify(data);
+      document.cookie = `${COOKIE_KEY}=${encodeURIComponent(json)}; Max-Age=${COOKIE_MAX_AGE}; Path=/; SameSite=Lax`;
+    } catch (err) {
+      console.error('状態の保存に失敗しました', err);
+    }
+  }
+
+  let cookieSaveTimer = null;
+  function queueSaveStateToCookie(){
+    clearTimeout(cookieSaveTimer);
+    cookieSaveTimer = setTimeout(() => {
+      cookieSaveTimer = null;
+      saveStateToCookie();
+    }, 0);
+  }
+
+  function loadStateFromCookie(){
+    try {
+      const cookies = document.cookie ? document.cookie.split(';') : [];
+      const prefix = `${COOKIE_KEY}=`;
+      const entry = cookies.map(c => c.trim()).find(c => c.startsWith(prefix));
+      if (!entry) return false;
+      const json = decodeURIComponent(entry.slice(prefix.length));
+      if (!json) return false;
+      const parsed = JSON.parse(json);
+      if (!parsed || !Array.isArray(parsed.names)) return false;
+
+      const names = [];
+      for (const raw of parsed.names) {
+        if (typeof raw !== 'string') continue;
+        const name = raw.trim();
+        if (!name) continue;
+        names.push(name);
+      }
+      const on = {};
+      const weight = {};
+      const srcOn = parsed.on && typeof parsed.on === 'object' ? parsed.on : {};
+      const srcWeight = parsed.weight && typeof parsed.weight === 'object' ? parsed.weight : {};
+      for (const name of names) {
+        on[name] = Object.prototype.hasOwnProperty.call(srcOn, name) ? !!srcOn[name] : true;
+        weight[name] = normalizeWeightValue(srcWeight[name]);
+      }
+      state.names = names;
+      state.on = on;
+      state.weight = weight;
+      return true;
+    } catch (err) {
+      console.error('状態の読み込みに失敗しました', err);
+      return false;
+    }
+  }
+
   // Wheel
   const TAU = Math.PI*2;
   const wheel = {
@@ -246,30 +316,38 @@
     for(const name of state.names){
       const row = document.createElement('div'); row.className='row';
       const cb = document.createElement('input'); cb.type='checkbox'; cb.checked=!!state.on[name];
-      cb.addEventListener('change',()=>{ state.on[name]=cb.checked; ui.toggleStart(); wheel.rebuild(); });
+      cb.addEventListener('change',()=>{ state.on[name]=cb.checked; ui.toggleStart(); wheel.rebuild(); queueSaveStateToCookie(); });
       const nameInput = document.createElement('input'); nameInput.className='name'; nameInput.value=name;
-      nameInput.addEventListener('change',()=>renameCharacter(name, nameInput.value));
+      nameInput.addEventListener('change',()=>{ if(renameCharacter(name, nameInput.value)){ queueSaveStateToCookie(); } });
       const w = document.createElement('input'); w.className='weight'; w.type='number'; w.min=0.1; w.max=10; w.step='any'; w.value=state.weight[name]; w.inputMode='decimal'; w.setAttribute('aria-label','重み'); w.title='重み';
       w.addEventListener('input',()=>{ let v=parseFloat(w.value); if(isNaN(v)) v=1; if(v<0.1) v=0.1; if(v>10) v=10; state.weight[name]=v; w.value=v; wheel.rebuild(); });
+      w.addEventListener('change',()=>{ queueSaveStateToCookie(); });
       const del = document.createElement('button'); del.className='remove'; del.textContent='削除';
-      del.addEventListener('click',()=>removeCharacter(name));
+      del.addEventListener('click',()=>{ if(removeCharacter(name)){ queueSaveStateToCookie(); } });
       row.append(cb, nameInput, w, del);
       refs.checks.appendChild(row);
     }
     ui.toggleStart();
   }
   function renameCharacter(oldName, newName){
-    newName = (newName||'').trim(); if(!newName || newName===oldName) { renderChecks(); return; }
+    newName = (newName||'').trim(); if(!newName || newName===oldName) { renderChecks(); return false; }
     const on = !!state.on[oldName]; const w = state.weight[oldName] ?? 1;
     const idx = state.names.indexOf(oldName); if(idx>=0) state.names[idx]=newName;
     delete state.on[oldName]; delete state.weight[oldName];
     state.on[newName] = on; state.weight[newName] = w;
     wheel.rebuild(); renderChecks();
+    return true;
   }
   function removeCharacter(name){
+    const before = state.names.length;
     state.names = state.names.filter(n => n!==name);
-    delete state.on[name]; delete state.weight[name];
-    wheel.rebuild(); renderChecks();
+    const changed = state.names.length !== before;
+    if(changed){
+      delete state.on[name]; delete state.weight[name];
+      wheel.rebuild();
+    }
+    renderChecks();
+    return changed;
   }
   refs.add.addEventListener('click',()=>{
     const name = (refs.newName.value||'').trim(); if(!name) return;
@@ -277,6 +355,7 @@
     state.names.push(name); state.on[name]=true; state.weight[name]=v;
     refs.newName.value=''; refs.newWeight.value='1';
     wheel.rebuild(); renderChecks();
+    queueSaveStateToCookie();
   });
 
   // ===== UI制御 =====
@@ -363,21 +442,31 @@
   refs.start.addEventListener('touchstart', startHandler, {passive:false});
  
   function applyPreset(key){
-    const list = PRESETS[key]; if(!Array.isArray(list)) return;
+    const list = PRESETS[key]; if(!Array.isArray(list)) return false;
     state.names  = list.slice();
     state.on     = Object.fromEntries(state.names.map(n => [n,true]));
     state.weight = Object.fromEntries(state.names.map(n => [n,1]));
     renderChecks(); wheel.rebuild(); ui.toggleStart();
+    return true;
   }
 
   document.querySelectorAll('#presets input[name="preset"]').forEach(r => {
-    r.addEventListener('change', () => applyPreset(r.value));
+    r.addEventListener('change', () => { if(applyPreset(r.value)){ queueSaveStateToCookie(); } });
   });
 
   function init(){
-    const oratanRadio = document.querySelector('#presets input[value="オラタン"]');
-    if (oratanRadio){ oratanRadio.checked = true; }
-    applyPreset('オラタン');
+    const loaded = loadStateFromCookie();
+    if (loaded){
+      document.querySelectorAll('#presets input[name="preset"]').forEach(r => { r.checked = false; });
+      renderChecks();
+      wheel.rebuild();
+      ui.toggleStart();
+    } else {
+      const oratanRadio = document.querySelector('#presets input[value="オラタン"]');
+      if (oratanRadio){ oratanRadio.checked = true; }
+      applyPreset('オラタン');
+    }
+    queueSaveStateToCookie();
     requestAnimationFrame(()=>{ resizeCanvas(); });
   }
   document.addEventListener('DOMContentLoaded', init, {once:true});
