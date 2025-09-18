@@ -42,6 +42,7 @@ function init() {
     wheel: /** @type {HTMLCanvasElement} */ ($('#wheel')),
     current: /** @type {HTMLElement} */ ($('#current')),
     presets: /** @type {HTMLElement} */ ($('#presets')),
+    favorites: /** @type {HTMLElement} */ ($('#favorites')),
     maxTime: /** @type {HTMLInputElement} */ ($('#maxTime')),
     decelTime: /** @type {HTMLInputElement} */ ($('#decelTime'))
   };
@@ -76,12 +77,14 @@ function init() {
       start: refs.start,
       stop: refs.stop,
       current: refs.current,
-      presets: refs.presets
+      presets: refs.presets,
+      favorites: refs.favorites
     },
     { wheel, animation }
   );
   ui.init();
   ui.setStopButtonEnabled(false);
+  ui.refreshFavoriteButtons();
 
   const startHandler = (event) => {
     event.preventDefault();
@@ -133,6 +136,7 @@ function init() {
     }
   }
 
+  ui.refreshFavoriteButtons();
   queueSaveStateToCookie();
   window.requestAnimationFrame(() => wheel.resize());
 }

@@ -12,6 +12,17 @@ export const PRESETS = {
   禁書VO: ['テムジン','バルルルーン','ライデン','スペシネフ','フェイ・イェン','エンジェラン','グリスボック','アファームドS','アファームドB','アファームドC','ドルドレイ','サイファー','バルバドス','ブルーストーカー']
 };
 
+/** お気に入りスロット数 */
+export const FAVORITE_SLOT_COUNT = 3;
+
+/**
+ * 保存される状態スナップショット。
+ * @typedef {{ names: string[], on: Record<string, boolean>, weight: Record<string, number> }} StateSnapshot
+ */
+
+/** @type {(StateSnapshot|null)[]} */
+const favorites = Array(FAVORITE_SLOT_COUNT).fill(null);
+
 /** アプリ内の共有状態 */
 export const state = {
   /** @type {string[]} */
@@ -170,6 +181,118 @@ export function applyPreset(key) {
 }
 
 /**
+ * 現在のstateからスナップショットを作成する。
+ * @returns {StateSnapshot}
+ */
+function createSnapshotFromState() {
+  return {
+    names: state.names.slice(),
+    on: Object.fromEntries(state.names.map((name) => [name, !!state.on[name]])),
+    weight: Object.fromEntries(state.names.map((name) => [name, normalizeWeightValue(state.weight[name])])),
+  };
+}
+
+/**
+ * スナップショットをディープコピーする。
+ * @param {StateSnapshot} snapshot
+ * @returns {StateSnapshot}
+ */
+function cloneSnapshot(snapshot) {
+  return {
+    names: snapshot.names.slice(),
+    on: { ...snapshot.on },
+    weight: { ...snapshot.weight },
+  };
+}
+
+/**
+ * 任意の値からスナップショットを正規化する。
+ * @param {unknown} raw
+ * @returns {StateSnapshot|null}
+ */
+function normalizeSnapshot(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const source = /** @type {{ names?: unknown; on?: unknown; weight?: unknown }} */ (raw);
+  const rawNames = Array.isArray(source.names) ? source.names : [];
+  const names = [];
+  for (const candidate of rawNames) {
+    if (typeof candidate !== 'string') {
+      continue;
+    }
+    const name = candidate.trim();
+    if (!name) {
+      continue;
+    }
+    names.push(name);
+  }
+  const srcOn = source.on && typeof source.on === 'object' ? /** @type {Record<string, unknown>} */ (source.on) : {};
+  const srcWeight = source.weight && typeof source.weight === 'object' ? /** @type {Record<string, unknown>} */ (source.weight) : {};
+  const on = {};
+  const weight = {};
+  for (const name of names) {
+    on[name] = Object.prototype.hasOwnProperty.call(srcOn, name) ? !!srcOn[name] : true;
+    weight[name] = normalizeWeightValue(Object.prototype.hasOwnProperty.call(srcWeight, name) ? /** @type {number|string} */ (srcWeight[name]) : 1);
+  }
+  return { names, on, weight };
+}
+
+/**
+ * スナップショットを現在のstateへ適用する。
+ * @param {StateSnapshot} snapshot
+ */
+function applySnapshotToState(snapshot) {
+  state.names = snapshot.names.slice();
+  state.on = Object.fromEntries(snapshot.names.map((name) => [name, !!snapshot.on[name]]));
+  state.weight = Object.fromEntries(snapshot.names.map((name) => [name, normalizeWeightValue(snapshot.weight[name])]));
+}
+
+/**
+ * 指定スロットに現在の状態をお気に入りとして保存する。
+ * @param {number} slot 0始まりのスロット番号。
+ * @returns {boolean} 成功時は true。
+ */
+export function saveFavorite(slot) {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= FAVORITE_SLOT_COUNT) {
+    return false;
+  }
+  favorites[slot] = createSnapshotFromState();
+  queueSaveStateToCookie();
+  return true;
+}
+
+/**
+ * 指定スロットからお気に入りを読み込む。
+ * @param {number} slot 0始まりのスロット番号。
+ * @returns {boolean} 読み込みできた場合は true。
+ */
+export function loadFavorite(slot) {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= FAVORITE_SLOT_COUNT) {
+    return false;
+  }
+  const snapshot = favorites[slot];
+  if (!snapshot) {
+    return false;
+  }
+  applySnapshotToState(snapshot);
+  queueSaveStateToCookie();
+  return true;
+}
+
+/**
+ * 指定スロットにお気に入りが存在するか。
+ * @param {number} slot
+ * @returns {boolean}
+ */
+export function hasFavorite(slot) {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= FAVORITE_SLOT_COUNT) {
+    return false;
+  }
+  return favorites[slot] != null;
+}
+
+/**
  * 現在の状態がどのプリセットと一致するかを返す。
  * @returns {string|null} 一致するプリセットキー。なければ null。
  */
@@ -214,7 +337,8 @@ export function saveStateToCookie() {
     const data = {
       names: state.names.slice(),
       on: Object.fromEntries(state.names.map((name) => [name, !!state.on[name]])),
-      weight: Object.fromEntries(state.names.map((name) => [name, normalizeWeightValue(state.weight[name])]))
+      weight: Object.fromEntries(state.names.map((name) => [name, normalizeWeightValue(state.weight[name])])),
+      favorites: favorites.map((fav) => (fav ? cloneSnapshot(fav) : null)),
     };
     const json = JSON.stringify(data);
     document.cookie = `${COOKIE_KEY}=${encodeURIComponent(json)}; Max-Age=${COOKIE_MAX_AGE}; Path=/; SameSite=Lax`;
@@ -255,28 +379,16 @@ export function loadStateFromCookie() {
       return { loaded: false, matchedPreset: null };
     }
 
-    const names = [];
-    for (const raw of parsed.names) {
-      if (typeof raw !== 'string') {
-        continue;
-      }
-      const name = raw.trim();
-      if (!name) {
-        continue;
-      }
-      names.push(name);
+    const snapshot = normalizeSnapshot(parsed);
+    if (snapshot) {
+      applySnapshotToState(snapshot);
     }
-    const on = {};
-    const weight = {};
-    const srcOn = parsed.on && typeof parsed.on === 'object' ? parsed.on : {};
-    const srcWeight = parsed.weight && typeof parsed.weight === 'object' ? parsed.weight : {};
-    for (const name of names) {
-      on[name] = Object.prototype.hasOwnProperty.call(srcOn, name) ? !!srcOn[name] : true;
-      weight[name] = normalizeWeightValue(srcWeight[name]);
+
+    const rawFavorites = Array.isArray(parsed.favorites) ? parsed.favorites : [];
+    for (let i = 0; i < FAVORITE_SLOT_COUNT; i += 1) {
+      const normalized = normalizeSnapshot(rawFavorites[i]);
+      favorites[i] = normalized;
     }
-    state.names = names;
-    state.on = on;
-    state.weight = weight;
     return { loaded: true, matchedPreset: findMatchingPresetKey() };
   } catch (err) {
     console.error('状態の読み込みに失敗しました', err);
