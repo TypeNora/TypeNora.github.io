@@ -12,7 +12,11 @@ import {
   renameCharacter,
   removeCharacter,
   getActiveEntries,
-  queueSaveStateToCookie
+  queueSaveStateToCookie,
+  findMatchingPresetKey,
+  saveFavorite,
+  loadFavorite,
+  hasFavorite
 } from './state.js';
 
 /**
@@ -28,6 +32,7 @@ import {
  * @property {HTMLButtonElement} stop
  * @property {HTMLElement} current
  * @property {HTMLElement} presets
+ * @property {HTMLElement} favorites
  */
 
 /**
@@ -42,6 +47,12 @@ export class CharacterListUI {
     this.refs = refs;
     this.wheel = wheel;
     this.animation = animation;
+    /** @type {HTMLButtonElement[]} */
+    this.favoriteButtons = [];
+    /** @type {HTMLInputElement[]} */
+    this.favoriteModeInputs = [];
+    /** @type {HTMLElement|null} */
+    this.favoriteStatusEl = null;
   }
 
   /** 初期化して各種イベントをバインドする。 */
@@ -50,6 +61,88 @@ export class CharacterListUI {
     this.refs.allOn.addEventListener('click', () => this.updateSelections(() => true));
     this.refs.allOff.addEventListener('click', () => this.updateSelections(() => false));
     this.refs.invert.addEventListener('click', () => this.updateSelections((prev) => !prev));
+    this.setupFavoriteControls();
+  }
+
+  /** お気に入りボタン関連の初期化 */
+  setupFavoriteControls() {
+    const container = this.refs.favorites;
+    this.favoriteButtons = Array.from(container.querySelectorAll('button[data-favorite-slot]'));
+    this.favoriteModeInputs = Array.from(container.querySelectorAll('input[name="favoriteMode"]'));
+    this.favoriteStatusEl = container.querySelector('[data-favorite-status]');
+    this.favoriteButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const slot = Number(button.dataset.favoriteSlot);
+        if (!Number.isInteger(slot)) {
+          return;
+        }
+        this.handleFavoriteButtonClick(slot);
+      });
+    });
+    this.favoriteModeInputs.forEach((input) => {
+      input.addEventListener('change', () => {
+        if (input.checked) {
+          this.setFavoriteStatus(input.value === 'save' ? '保存モードに切り替えました。' : '読込モードに切り替えました。');
+        }
+        this.refreshFavoriteButtons();
+      });
+    });
+    this.refreshFavoriteButtons();
+    this.setFavoriteStatus('');
+  }
+
+  /** 現在のモードを取得する */
+  getFavoriteMode() {
+    const active = this.favoriteModeInputs.find((input) => input.checked);
+    return active && active.value === 'save' ? 'save' : 'load';
+  }
+
+  /** お気に入りボタンの表示を更新する */
+  refreshFavoriteButtons() {
+    const mode = this.getFavoriteMode();
+    this.refs.favorites.dataset.mode = mode;
+    this.favoriteButtons.forEach((button) => {
+      const slot = Number(button.dataset.favoriteSlot);
+      if (!Number.isInteger(slot)) {
+        return;
+      }
+      const saved = hasFavorite(slot);
+      const displayIndex = slot + 1;
+      button.classList.toggle('saved', saved);
+      button.setAttribute('aria-pressed', saved ? 'true' : 'false');
+      button.title = saved ? `お気に入り${displayIndex}：保存済み` : `お気に入り${displayIndex}：未保存`;
+      button.disabled = mode === 'load' && !saved;
+    });
+  }
+
+  /** お気に入り操作のステータスメッセージを更新する */
+  setFavoriteStatus(message) {
+    if (this.favoriteStatusEl) {
+      this.favoriteStatusEl.textContent = message;
+    }
+  }
+
+  /** お気に入りボタンのクリック処理 */
+  handleFavoriteButtonClick(slot) {
+    const mode = this.getFavoriteMode();
+    const displayIndex = slot + 1;
+    if (mode === 'save') {
+      const saved = saveFavorite(slot);
+      this.refreshFavoriteButtons();
+      this.setFavoriteStatus(saved ? `お気に入り${displayIndex}に保存しました。` : 'お気に入りの保存に失敗しました。');
+      return;
+    }
+
+    if (loadFavorite(slot)) {
+      this.renderChecks();
+      this.updateWheel();
+      const matched = findMatchingPresetKey();
+      this.selectPresetRadio(matched);
+      this.setFavoriteStatus(`お気に入り${displayIndex}を読み込みました。`);
+    } else {
+      this.setFavoriteStatus(`お気に入り${displayIndex}は未保存です。`);
+    }
+    this.refreshFavoriteButtons();
   }
 
   /**
