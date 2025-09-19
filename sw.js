@@ -3,9 +3,10 @@
  *
  * - Pre-caches core assets so the app works offline.
  * - Cleans up old caches on activation.
- * - Serves responses from cache first and updates the cache from the network.
+ * - Uses a network-first strategy to ensure the latest assets while keeping an
+ *   offline fallback available.
  */
-const CACHE_NAME = 'roulette-v4'; // Update this to refresh old caches
+const CACHE_NAME = 'roulette-v5'; // Update this to refresh old caches
 
 const OFFLINE_URL = './index.html';
 
@@ -22,6 +23,7 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_ASSETS))
   );
+  self.skipWaiting();
 });
 
 // Activate event: remove old caches
@@ -33,11 +35,31 @@ self.addEventListener('activate', event => {
       )
     )
   );
+  self.clients.claim();
 });
 
-// Fetch event: cache-first strategy with network fallback
+// Fetch event: network-first with cache fallback per asset type
 self.addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request));
+  const { request } = event;
+
+  if (request.method !== 'GET') {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  const url = new URL(request.url);
+
+  if (url.origin !== location.origin) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  if (request.mode === 'navigate' || request.destination === 'document' || url.pathname.endsWith('.html')) {
+    event.respondWith(networkFirst(request, OFFLINE_URL));
+    return;
+  }
+
+  event.respondWith(networkFirst(request));
 });
 
 /**
@@ -46,27 +68,26 @@ self.addEventListener('fetch', event => {
  * @param {Request} request
  * @returns {Promise<Response>}
  */
-async function handleRequest(request) {
-  // Attempt to serve from cache first
-  const cached = await caches.match(request);
-  if (cached) return cached;
+async function networkFirst(request, fallbackUrl) {
+  const cache = await caches.open(CACHE_NAME);
 
   try {
     const response = await fetch(request);
-
-    // Cache successful GET requests from our own origin
-    if (
-      request.method === 'GET' &&
-      response.ok &&
-      new URL(request.url).origin === location.origin
-    ) {
-      const cache = await caches.open(CACHE_NAME);
+    if (response && response.ok) {
       cache.put(request, response.clone());
     }
-
     return response;
-  } catch {
-    // Offline fallback: return cached index page
-    return caches.match(OFFLINE_URL);
+  } catch (error) {
+    const cached = await cache.match(request);
+    if (cached) {
+      return cached;
+    }
+    if (fallbackUrl) {
+      const fallback = await cache.match(fallbackUrl);
+      if (fallback) {
+        return fallback;
+      }
+    }
+    throw error;
   }
 }
