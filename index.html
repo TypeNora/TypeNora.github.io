@@ -50,8 +50,13 @@
   .preset-block{ display:grid; gap:6px; }
   .favorite-block{ display:flex; flex-direction:column; gap:6px; padding:8px; border:1px solid #ccc; border-radius:8px; background:#fff; }
   .favorite-mode{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
-  .favorite-buttons{ display:flex; gap:8px; }
-  .favorite-buttons button{ flex:1 1 0; min-width:44px; }
+  .favorite-buttons{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(96px, 1fr));
+    gap:8px;
+    width:min(100%, calc(100vw - 64px));
+  }
+  .favorite-buttons button{ width:100%; min-width:0; }
   .favorite-buttons button.saved{ background:#fff3c4; border-color:#d6a000; font-weight:600; color:#7a5600; }
   .favorite-status{ min-height:1.2em; color:#555; }
 
