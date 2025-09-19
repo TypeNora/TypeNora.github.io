@@ -16,7 +16,8 @@ import {
   findMatchingPresetKey,
   saveFavorite,
   loadFavorite,
-  hasFavorite
+  hasFavorite,
+  FAVORITE_SLOT_COUNT
 } from './state.js';
 
 /**
@@ -67,7 +68,12 @@ export class CharacterListUI {
   /** お気に入りボタン関連の初期化 */
   setupFavoriteControls() {
     const container = this.refs.favorites;
-    this.favoriteButtons = Array.from(container.querySelectorAll('button[data-favorite-slot]'));
+    const buttonsContainer = container.querySelector('.favorite-buttons');
+    if (!buttonsContainer) {
+      throw new Error('Favorite buttons container not found.');
+    }
+    this.ensureFavoriteButtonSlots(buttonsContainer);
+    this.favoriteButtons = Array.from(buttonsContainer.querySelectorAll('button[data-favorite-slot]'));
     this.favoriteModeInputs = Array.from(container.querySelectorAll('input[name="favoriteMode"]'));
     this.favoriteStatusEl = container.querySelector('[data-favorite-status]');
     this.favoriteButtons.forEach((button) => {
@@ -89,6 +95,36 @@ export class CharacterListUI {
     });
     this.refreshFavoriteButtons();
     this.setFavoriteStatus('');
+  }
+
+  /**
+   * HTMLに存在するお気に入りボタン数をスロット数と同期する。
+   * @param {Element} buttonsContainer ボタンを内包する要素。
+   */
+  ensureFavoriteButtonSlots(buttonsContainer) {
+    const buttons = Array.from(buttonsContainer.querySelectorAll('button[data-favorite-slot]'));
+    // 余分なボタンは削除する
+    for (let i = buttons.length - 1; i >= FAVORITE_SLOT_COUNT; i -= 1) {
+      buttons[i].remove();
+    }
+    // 残ったボタンの番号と表示を整える
+    const syncedButtons = Array.from(buttonsContainer.querySelectorAll('button[data-favorite-slot]'));
+    syncedButtons.forEach((button, index) => {
+      const displayIndex = index + 1;
+      button.dataset.favoriteSlot = String(index);
+      button.textContent = String(displayIndex);
+      button.setAttribute('aria-label', `お気に入り${displayIndex}`);
+    });
+    // 足りない分を追加する
+    for (let i = syncedButtons.length; i < FAVORITE_SLOT_COUNT; i += 1) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.favoriteSlot = String(i);
+      const displayIndex = i + 1;
+      button.textContent = String(displayIndex);
+      button.setAttribute('aria-label', `お気に入り${displayIndex}`);
+      buttonsContainer.appendChild(button);
+    }
   }
 
   /** 現在のモードを取得する */
