@@ -139,16 +139,38 @@ export class WheelRenderer {
       ctx.stroke();
 
       const mid = (segment.start + segment.end) / 2;
-      ctx.save();
-      ctx.rotate(mid);
-      ctx.translate(radius * 0.7, 0);
-      ctx.rotate(-mid);
-      ctx.fillStyle = '#111';
-      ctx.font = 'bold 16px system-ui, Noto Sans JP, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(segment.name, 0, 0, radius * 0.55);
-      ctx.restore();
+      const glyphs = Array.from(segment.name || '');
+      if (glyphs.length) {
+        ctx.save();
+        ctx.rotate(mid);
+        const fontSize = Math.max(12, Math.min(24, radius * 0.085));
+        const inner = Math.min(radius * 0.2, radius * 0.5);
+        const outer = Math.max(inner + fontSize, radius - fontSize * 0.5);
+        const available = outer - inner;
+        ctx.fillStyle = '#111';
+        ctx.font = `600 ${fontSize}px system-ui, Noto Sans JP, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if (glyphs.length === 1) {
+          const distance = inner + available / 2;
+          ctx.save();
+          ctx.translate(distance, 0);
+          ctx.rotate(-mid);
+          ctx.fillText(glyphs[0], 0, 0);
+          ctx.restore();
+        } else {
+          const step = available / (glyphs.length - 1);
+          for (let i = 0; i < glyphs.length; i += 1) {
+            const distance = inner + step * i;
+            ctx.save();
+            ctx.translate(distance, 0);
+            ctx.rotate(-mid);
+            ctx.fillText(glyphs[i], 0, 0);
+            ctx.restore();
+          }
+        }
+        ctx.restore();
+      }
     }
 
     ctx.beginPath();
