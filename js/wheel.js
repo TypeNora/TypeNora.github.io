@@ -139,8 +139,8 @@ export class WheelRenderer {
       ctx.stroke();
 
       const mid = (segment.start + segment.end) / 2;
-      const glyphs = Array.from(segment.name || '');
-      if (glyphs.length) {
+      const label = segment.name || '';
+      if (label) {
         ctx.save();
         ctx.rotate(mid);
         const fontSize = Math.max(12, Math.min(24, radius * 0.085));
@@ -151,24 +151,17 @@ export class WheelRenderer {
         ctx.font = `600 ${fontSize}px system-ui, Noto Sans JP, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        if (glyphs.length === 1) {
-          const distance = inner + available / 2;
-          ctx.save();
-          ctx.translate(distance, 0);
-          ctx.rotate(-mid);
-          ctx.fillText(glyphs[0], 0, 0);
-          ctx.restore();
-        } else {
-          const step = available / (glyphs.length - 1);
-          for (let i = 0; i < glyphs.length; i += 1) {
-            const distance = inner + step * i;
-            ctx.save();
-            ctx.translate(distance, 0);
-            ctx.rotate(-mid);
-            ctx.fillText(glyphs[i], 0, 0);
-            ctx.restore();
-          }
+        const maxWidth = Math.max(available * 0.9, fontSize);
+        const metrics = ctx.measureText(label);
+        const labelWidth = Math.max(metrics.width, 1);
+        const scale = Math.min(1, maxWidth / labelWidth);
+        const distance = inner + available / 2;
+        ctx.translate(distance, 0);
+        if (scale < 1) {
+          ctx.scale(scale, scale);
         }
+        ctx.rotate(-mid);
+        ctx.fillText(label, 0, 0);
         ctx.restore();
       }
     }
