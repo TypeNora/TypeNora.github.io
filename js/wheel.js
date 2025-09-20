@@ -160,7 +160,6 @@ export class WheelRenderer {
         if (scale < 1) {
           ctx.scale(scale, scale);
         }
-        ctx.rotate(-mid);
         ctx.fillText(label, 0, 0);
         ctx.restore();
       }
